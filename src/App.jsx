@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { products } from './data.js';
 import { cartReducer, initialCart } from './cart.js';
 
@@ -28,7 +28,8 @@ function SearchBar({ query, setQuery, onlyInStock, setOnlyInStock, inputRef }) {
   );
 }
 
-function ProductCard({ product, qty, onAdd, onRemove }) {
+const ProductCard = memo(function ProductCard({ product, qty, onAdd, onRemove }) {
+  console.log('render', product.id);
   return (
     <article className="card">
       <h3>{product.title}</h3>
@@ -39,14 +40,13 @@ function ProductCard({ product, qty, onAdd, onRemove }) {
       {qty > 0 && <button onClick={() => onRemove(product.id)}>Remove</button>}
     </article>
   );
-}
+});
 
-function ProductList({ items, cartItems, onAdd, onRemove }) {
+function ProductList({ items, qtyById, onAdd, onRemove }) {
   return (
     <div className="products">
       {items.map((product) => (
-        <ProductCard key={product.id} product={product}
-          qty={cartItems.find((item) => item.id === product.id)?.qty ?? 0}
+        <ProductCard key={product.id} product={product} qty={qtyById[product.id] ?? 0}
           onAdd={onAdd} onRemove={onRemove} />
       ))}
     </div>
@@ -67,18 +67,20 @@ export default function App() {
       product.title.toLowerCase().includes(text) && (!onlyInStock || product.inStock));
   }, [query, onlyInStock]);
 
-  const count = cart.items.reduce((sum, item) => sum + item.qty, 0);
-  const total = cart.items.reduce((sum, item) => sum + item.qty * item.price, 0);
+  const qtyById = useMemo(() => Object.fromEntries(cart.items.map((item) => [item.id, item.qty])), [cart.items]);
+  const count = useMemo(() => cart.items.reduce((sum, item) => sum + item.qty, 0), [cart.items]);
+  const total = useMemo(() => cart.items.reduce((sum, item) => sum + item.qty * item.price, 0), [cart.items]);
+  const onAdd = useCallback((product) => dispatch({ type: 'add', product }), []);
+  const onRemove = useCallback((id) => dispatch({ type: 'remove', id }), []);
+  const onClear = useCallback(() => dispatch({ type: 'clear' }), []);
 
   return (
     <main className="page">
-      <Header count={count} total={total} onClear={() => dispatch({ type: 'clear' })} />
+      <Header count={count} total={total} onClear={onClear} />
       <SearchBar query={query} setQuery={setQuery} onlyInStock={onlyInStock}
         setOnlyInStock={setOnlyInStock} inputRef={inputRef} />
       <p className="count">Found: {visible.length}</p>
-      <ProductList items={visible} cartItems={cart.items}
-        onAdd={(product) => dispatch({ type: 'add', product })}
-        onRemove={(id) => dispatch({ type: 'remove', id })} />
+      <ProductList items={visible} qtyById={qtyById} onAdd={onAdd} onRemove={onRemove} />
     </main>
   );
 }
