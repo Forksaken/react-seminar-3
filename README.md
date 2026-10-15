@@ -1,2 +1,5 @@
-# react-seminar-3
-HSE react-seminar-3
+# React Seminar 3
+
+## Render optimization
+
+![Render check](screenshots/image.png)

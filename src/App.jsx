@@ -1,6 +1,6 @@
-import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { products } from './data.js';
-import { cartReducer, initialCart } from './cart.js';
+import { useCart } from './useCart.js';
 
 function Header({ count, total, onClear }) {
   return (
@@ -14,11 +14,11 @@ function Header({ count, total, onClear }) {
   );
 }
 
-function SearchBar({ query, setQuery, onlyInStock, setOnlyInStock, inputRef }) {
+function SearchBar({ query, onQueryChange, onlyInStock, setOnlyInStock, inputRef }) {
   return (
     <div className="controls">
       <input ref={inputRef} type="text" placeholder="Search products" value={query}
-        onChange={(e) => setQuery(e.target.value)} />
+        onChange={(e) => onQueryChange(e.target.value)} />
       <label>
         <input type="checkbox" checked={onlyInStock}
           onChange={(e) => setOnlyInStock(e.target.checked)} />
@@ -55,32 +55,32 @@ function ProductList({ items, qtyById, onAdd, onRemove }) {
 
 export default function App() {
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('');
   const [onlyInStock, setOnlyInStock] = useState(false);
-  const [cart, dispatch] = useReducer(cartReducer, initialCart);
+  const [isPending, startTransition] = useTransition();
   const inputRef = useRef(null);
+  const cart = useCart();
 
   useEffect(() => { inputRef.current.focus(); }, []);
 
+  function handleSearch(value) {
+    setQuery(value);
+    startTransition(() => setFilter(value));
+  }
+
   const visible = useMemo(() => {
-    const text = query.trim().toLowerCase();
+    const text = filter.trim().toLowerCase();
     return products.filter((product) =>
       product.title.toLowerCase().includes(text) && (!onlyInStock || product.inStock));
-  }, [query, onlyInStock]);
-
-  const qtyById = useMemo(() => Object.fromEntries(cart.items.map((item) => [item.id, item.qty])), [cart.items]);
-  const count = useMemo(() => cart.items.reduce((sum, item) => sum + item.qty, 0), [cart.items]);
-  const total = useMemo(() => cart.items.reduce((sum, item) => sum + item.qty * item.price, 0), [cart.items]);
-  const onAdd = useCallback((product) => dispatch({ type: 'add', product }), []);
-  const onRemove = useCallback((id) => dispatch({ type: 'remove', id }), []);
-  const onClear = useCallback(() => dispatch({ type: 'clear' }), []);
+  }, [filter, onlyInStock]);
 
   return (
     <main className="page">
-      <Header count={count} total={total} onClear={onClear} />
-      <SearchBar query={query} setQuery={setQuery} onlyInStock={onlyInStock}
+      <Header count={cart.totalCount} total={cart.totalPrice} onClear={cart.clear} />
+      <SearchBar query={query} onQueryChange={handleSearch} onlyInStock={onlyInStock}
         setOnlyInStock={setOnlyInStock} inputRef={inputRef} />
-      <p className="count">Found: {visible.length}</p>
-      <ProductList items={visible} qtyById={qtyById} onAdd={onAdd} onRemove={onRemove} />
+      <p className="count">Found: {visible.length} {isPending && '· Updating results…'}</p>
+      <ProductList items={visible} qtyById={cart.qtyById} onAdd={cart.add} onRemove={cart.remove} />
     </main>
   );
 }
